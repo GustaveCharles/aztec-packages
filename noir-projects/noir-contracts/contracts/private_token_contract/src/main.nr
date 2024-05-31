@@ -7,8 +7,7 @@ contract PrivateToken {
     use dep::aztec::{
         hash::compute_secret_hash,
         prelude::{NoteGetterOptions, Map, PublicMutable, SharedImmutable, PrivateSet, AztecAddress},
-        protocol_types::abis::function_selector::FunctionSelector, oracle::unsafe_rand::unsafe_rand,
-        keys::getters::get_npk_m_hash
+        protocol_types::abis::function_selector::FunctionSelector, oracle::unsafe_rand::unsafe_rand
     };
     use dep::authwit::{auth::{assert_current_call_valid_authwit, assert_current_call_valid_authwit_public}};
     use crate::types::{token_note::{TokenNote, TOKEN_NOTE_LEN}, balances_map::BalancesMap};
@@ -92,7 +91,11 @@ contract PrivateToken {
 
     #[aztec(private)]
     fn privately_mint_private_note(amount: Field) {
-        storage.balances.add(context.msg_sender(), U128::from_integer(amount));
+        storage.balances.add(
+            context.msg_sender(),
+            context.msg_sender(),
+            U128::from_integer(amount)
+        );
         PrivateToken::at(context.this_address()).assert_minter_and_mint(context.msg_sender(), amount).enqueue(&mut context);
     }
 
@@ -114,12 +117,13 @@ contract PrivateToken {
 
         let amount = U128::from_integer(amount);
         storage.balances.sub(from, amount);
-        storage.balances.add(to, amount);
+        storage.balances.add(from, to, amount);
     }
 
     #[aztec(private)]
     fn balance_of_private(owner: AztecAddress) -> pub Field {
-        let owner_npk_m_hash = get_npk_m_hash(&mut context, owner);
+        let header = context.get_header();
+        let owner_npk_m_hash = header.get_npk_m_hash(&mut context, owner);
         storage.balances.to_unconstrained().balance_of(owner_npk_m_hash).to_integer()
     }
 
