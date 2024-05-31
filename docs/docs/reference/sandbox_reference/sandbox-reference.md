@@ -206,7 +206,6 @@ SchnorrSingleKeyAccountContractArtifact
 SlowTreeContractArtifact
 StatefulTestContractArtifact
 TestContractArtifact
-TokenBlacklistContractArtifact
 TokenBridgeContractArtifact
 TokenContractArtifact
 UniswapContractArtifact
