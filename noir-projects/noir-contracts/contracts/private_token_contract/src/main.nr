@@ -12,6 +12,7 @@ contract PrivateToken {
     use dep::authwit::{auth::{assert_current_call_valid_authwit, assert_current_call_valid_authwit_public}};
     use crate::types::{token_note::{TokenNote, TOKEN_NOTE_LEN}, balances_map::BalancesMap};
     use dep::std::embedded_curve_ops::EmbeddedCurvePoint;
+    use dep::std::ec::tecurve::affine::Point;
 
     #[aztec(storage)]
     struct Storage {
@@ -156,8 +157,8 @@ contract PrivateToken {
         user_point_x: Field,
         user_point_y: Field
     ) {
-        let fpc_point = EmbeddedCurvePoint { x: fpc_point_x, y: fpc_point_y, is_infinite: false };
-        let user_point = EmbeddedCurvePoint { x: user_point_x, y: user_point_y, is_infinite: false };
+        let fpc_point = Point { x: fpc_point_x, y: fpc_point_y };
+        let user_point = Point { x: user_point_x, y: user_point_y };
 
         let tx_fee = context.transaction_fee();
         let note_hashes = TokenNote::complete_refund(fpc_point, user_point, tx_fee);

@@ -4,8 +4,7 @@ use dep::aztec::{
     note::utils::compute_note_hash_for_consumption, oracle::unsafe_rand::unsafe_rand,
     keys::getters::get_nsk_app, note::note_getter_options::PropertySelector
 };
-use dep::std::hash::pedersen_commitment;
-use dep::std::embedded_curve_ops::EmbeddedCurvePoint;
+use dep::std::ec::{consts::te::baby_jubjub, tecurve::affine::Point};
 
 trait OwnedNote {
     fn new(amount: U128, owner_npk_m_hash: Field) -> Self;
@@ -19,11 +18,11 @@ trait PrivatelyRefundable {
         fee_payer: AztecAddress,
         sponsored_user: AztecAddress,
         funded_amount: Field
-    ) -> [EmbeddedCurvePoint; 2];
+    ) -> [Point; 2];
 
     fn complete_refund(
-        fee_payer_point: EmbeddedCurvePoint,
-        sponsored_user_point: EmbeddedCurvePoint,
+        fee_payer_point: Point,
+        sponsored_user_point: Point,
         transaction_fee: Field
     ) -> [Field; 2];
 }
@@ -81,9 +80,11 @@ impl NoteInterface<TOKEN_NOTE_LEN, TOKEN_NOTE_BYTES_LEN> for TokenNote {
     }
 
     fn compute_note_content_hash(self) -> Field {
-        let point = pedersen_commitment([self.amount.to_integer()])
-            + pedersen_commitment([self.npk_m_hash]) 
-            + pedersen_commitment([self.randomness]);
+        let bjj = baby_jubjub();
+        let gens = [bjj.curve.gen, bjj.curve.gen, bjj.curve.gen];
+        let scalars = [self.amount.to_integer(), self.npk_m_hash, self.randomness];
+
+        let point = bjj.curve.msm(scalars, gens);
         point.x
     }
 }
@@ -112,22 +113,40 @@ impl OwnedNote for TokenNote {
 }
 
 impl PrivatelyRefundable for TokenNote {
-    fn generate_refund_points(fee_payer: AztecAddress, sponsored_user: AztecAddress, funded_amount: Field) -> [EmbeddedCurvePoint; 2] {
+    fn generate_refund_points(fee_payer: AztecAddress, sponsored_user: AztecAddress, funded_amount: Field) -> [Point; 2] {
+        let bjj = baby_jubjub();
+
+
         let fee_payer_nonce = unsafe_rand();
-        let fee_payer_point = pedersen_commitment([fee_payer.to_field()]) + pedersen_commitment([fee_payer_nonce]);
+        let fee_payer_point = bjj.curve.msm([
+            fee_payer.to_field(),
+            fee_payer_nonce,
+        ], [
+            bjj.curve.gen,
+            bjj.curve.gen,
+        ]);
 
         let sponsored_user_nonce = unsafe_rand();
-        let sponsored_user_point = pedersen_commitment([sponsored_user.to_field()]) 
-            + pedersen_commitment([funded_amount])
-            + pedersen_commitment([sponsored_user_nonce]);
+        let sponsored_user_point = bjj.curve.msm([
+            sponsored_user.to_field(),
+            funded_amount,
+            sponsored_user_nonce,
+        ], [
+            bjj.curve.gen,
+            bjj.curve.gen,
+            bjj.curve.gen,
+        ]);
+
         [fee_payer_point, sponsored_user_point]
     }
 
-    fn complete_refund(fee_payer_point: EmbeddedCurvePoint, sponsored_user_point: EmbeddedCurvePoint, transaction_fee: Field) -> [Field; 2] {
-        let fee_point = pedersen_commitment([transaction_fee]);
+    fn complete_refund(fee_payer_point: Point, sponsored_user_point: Point, transaction_fee: Field) -> [Field; 2] {
+        let bjj = baby_jubjub();
 
-        let completed_fpc_point = fee_payer_point + fee_point;
-        let completed_user_point = sponsored_user_point - fee_point;
+        let fee_point = bjj.curve.mul(transaction_fee, bjj.curve.gen);
+
+        let completed_fpc_point = bjj.curve.add(fee_payer_point, fee_point);
+        let completed_user_point = bjj.curve.subtract(sponsored_user_point, fee_point);
 
         [completed_fpc_point.x, completed_user_point.x]
     }
