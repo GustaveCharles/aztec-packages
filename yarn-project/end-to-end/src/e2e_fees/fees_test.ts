@@ -14,7 +14,7 @@ import {
   createDebugLogger,
 } from '@aztec/aztec.js';
 import { DefaultMultiCallEntrypoint } from '@aztec/aztec.js/entrypoint';
-import { EthAddress, GasSettings } from '@aztec/circuits.js';
+import { EthAddress, GasSettings, computePartialAddress } from '@aztec/circuits.js';
 import { createL1Clients } from '@aztec/ethereum';
 import { PortalERC20Abi } from '@aztec/l1-artifacts';
 import {
@@ -99,6 +99,14 @@ export class FeesTest {
     await this.snapshotManager.teardown();
   }
 
+  /** Alice mints PrivateToken  */
+  async mintPrivateTokens(amount: bigint) {
+    const balanceBefore = await this.privateToken.methods.balance_of_private(this.aliceAddress).simulate();
+    await this.privateToken.methods.privately_mint_private_note(amount).send().wait();
+    const balanceAfter = await this.privateToken.methods.balance_of_private(this.aliceAddress).simulate();
+    expect(balanceAfter).toEqual(balanceBefore + amount);
+  }
+
   /** Alice mints bananaCoin tokens privately to the target address and redeems them. */
   async mintPrivateBananas(amount: bigint, address: AztecAddress) {
     const balanceBefore = await this.bananaCoin.methods.balance_of_private(address).simulate();
@@ -147,7 +155,7 @@ export class FeesTest {
     await this.applyDeployBananaTokenSnapshot();
   }
 
-  private async applyInitialAccountsSnapshot() {
+  async applyInitialAccountsSnapshot() {
     await this.snapshotManager.snapshot(
       'initial_accounts',
       addAccounts(3, this.logger),
@@ -160,18 +168,23 @@ export class FeesTest {
         this.wallets.forEach((w, i) => this.logger.verbose(`Wallet ${i} address: ${w.getAddress()}`));
         [this.aliceWallet, this.bobWallet] = this.wallets.slice(0, 2);
         [this.aliceAddress, this.bobAddress, this.sequencerAddress] = this.wallets.map(w => w.getAddress());
+        const bobInstance = await this.bobWallet.getContractInstance(this.bobAddress);
+        if (!bobInstance) {
+          throw new Error('Bob instance not found');
+        }
+        this.aliceWallet.registerAccount(accountKeys[1][0], computePartialAddress(bobInstance));
         this.coinbase = EthAddress.random();
       },
     );
   }
 
-  private async applyPublicDeployAccountsSnapshot() {
+  async applyPublicDeployAccountsSnapshot() {
     await this.snapshotManager.snapshot('public_deploy_accounts', () =>
       publicDeployAccounts(this.aliceWallet, this.wallets),
     );
   }
 
-  private async applyDeployGasTokenSnapshot() {
+  async applyDeployGasTokenSnapshot() {
     await this.snapshotManager.snapshot(
       'deploy_gas_token',
       async context => {
@@ -184,6 +197,8 @@ export class FeesTest {
       },
       async (_data, context) => {
         this.gasTokenContract = await GasTokenContract.at(getCanonicalGasToken().address, this.aliceWallet);
+
+        this.gasBalances = getBalancesFn('⛽', this.gasTokenContract.methods.balance_of_public, this.logger);
 
         const { publicClient, walletClient } = createL1Clients(context.aztecNodeConfig.rpcUrl, MNEMONIC);
         this.gasBridgeTestHarness = await GasPortalTestingHarnessFactory.create({
@@ -199,7 +214,7 @@ export class FeesTest {
     );
   }
 
-  private async applyDeployBananaTokenSnapshot() {
+  async applyDeployBananaTokenSnapshot() {
     await this.snapshotManager.snapshot(
       'deploy_banana_token',
       async () => {
@@ -211,6 +226,36 @@ export class FeesTest {
       },
       async ({ bananaCoinAddress }) => {
         this.bananaCoin = await BananaCoin.at(bananaCoinAddress, this.aliceWallet);
+      },
+    );
+  }
+
+  async applyPrivateTokenAndFPC() {
+    await this.snapshotManager.snapshot(
+      'private_token_and_private_fpc',
+      async () => {
+        // Deploy token/fpc flavors for private refunds
+
+        const privateToken = await PrivateTokenContract.deploy(this.aliceWallet, this.aliceAddress, 'PVT', 'PVT', 18n)
+          .send()
+          .deployed();
+
+        this.logger.info(`PrivateToken deployed at ${privateToken.address}`);
+
+        const privateFPC = await PrivateFPCContract.deploy(this.bobWallet, privateToken.address).send().deployed();
+
+        this.logger.info(`PrivateFPC deployed at ${privateFPC.address}`);
+        return {
+          privateTokenAddress: privateToken.address,
+          privateFPCAddress: privateFPC.address,
+        };
+      },
+      async (data, context) => {
+        this.privateFPC = await PrivateFPCContract.at(data.privateFPCAddress, this.bobWallet);
+        this.privateToken = await PrivateTokenContract.at(data.privateTokenAddress, this.aliceWallet);
+
+        const logger = this.logger;
+        this.privateTokenBalances = getBalancesFn('🕵️.private', this.privateToken.methods.balance_of_private, logger);
       },
     );
   }
@@ -235,22 +280,8 @@ export class FeesTest {
           bananaFPC.address,
         );
 
-        // Deploy token/fpc flavors for private refunds
-
-        const privateToken = await PrivateTokenContract.deploy(this.aliceWallet, bananaCoin.address, 'PVT', 'PVT', 18n)
-          .send()
-          .deployed();
-
-        this.logger.info(`PrivateToken deployed at ${privateToken.address}`);
-
-        const privateFPC = await PrivateFPCContract.deploy(this.aliceWallet, privateToken.address).send().deployed();
-
-        this.logger.info(`PrivateFPC deployed at ${privateFPC.address}`);
-
         return {
           bananaFPCAddress: bananaFPC.address,
-          privateTokenAddress: privateToken.address,
-          privateFPCAddress: privateFPC.address,
           gasTokenAddress: gasTokenContract.address,
           l1GasTokenAddress: this.gasBridgeTestHarness.l1GasTokenAddress,
         };
@@ -262,7 +293,6 @@ export class FeesTest {
         const logger = this.logger;
         this.bananaPublicBalances = getBalancesFn('🍌.public', this.bananaCoin.methods.balance_of_public, logger);
         this.bananaPrivateBalances = getBalancesFn('🍌.private', this.bananaCoin.methods.balance_of_private, logger);
-        this.gasBalances = getBalancesFn('⛽', this.gasTokenContract.methods.balance_of_public, logger);
 
         this.getCoinbaseBalance = async () => {
           const { walletClient } = createL1Clients(context.aztecNodeConfig.rpcUrl, MNEMONIC);
@@ -292,7 +322,7 @@ export class FeesTest {
     await this.snapshotManager.snapshot(
       'fund_alice_with_private_tokens',
       async () => {
-        await this.mintPrivate(BigInt(this.ALICE_INITIAL_BANANAS), this.aliceAddress, this.privateToken);
+        await this.mintPrivateTokens(BigInt(this.ALICE_INITIAL_BANANAS));
       },
       () => Promise.resolve(),
     );

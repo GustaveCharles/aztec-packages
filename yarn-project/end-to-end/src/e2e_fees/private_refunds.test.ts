@@ -1,9 +1,14 @@
-import { AztecAddress, FeePaymentMethod, Wallet, computeAuthWitMessageHash } from '@aztec/aztec.js';
-import { type FunctionCall } from '@aztec/circuit-types';
-import { FunctionData, type GasSettings } from '@aztec/circuits.js';
-import { FunctionSelector } from '@aztec/foundation/abi';
+import {
+  type AztecAddress,
+  type FeePaymentMethod,
+  type FunctionCall,
+  type Wallet,
+  computeAuthWitMessageHash,
+} from '@aztec/aztec.js';
+import { type GasSettings } from '@aztec/circuits.js';
+import { FunctionSelector, FunctionType } from '@aztec/foundation/abi';
 import { Fr } from '@aztec/foundation/fields';
-import { PrivateFPCContract, type PrivateTokenContract } from '@aztec/noir-contracts.js';
+import { type PrivateFPCContract, type PrivateTokenContract } from '@aztec/noir-contracts.js';
 
 import { expectMapping } from '../fixtures/utils.js';
 import { FeesTest } from './fees_test.js';
@@ -18,12 +23,16 @@ describe('e2e_fees/private_refunds', () => {
   let InitialPrivateFPCPrivateTokens: bigint;
   let InitialPrivateFPCGas: bigint;
 
-  const t = new FeesTest('private_payment');
+  const t = new FeesTest('private_payment_with_private_refund');
 
   beforeAll(async () => {
-    await t.applyBaseSnapshots();
+    await t.applyInitialAccountsSnapshot();
+    await t.applyPublicDeployAccountsSnapshot();
+    await t.applyDeployGasTokenSnapshot();
+    await t.applyPrivateTokenAndFPC();
     await t.applyFundAliceWithPrivateTokens();
     ({ aliceWallet, aliceAddress, privateFPC, privateToken } = await t.setup());
+    t.logger.debug(`Alice address: ${aliceAddress}`);
   });
 
   afterAll(async () => {
@@ -32,12 +41,13 @@ describe('e2e_fees/private_refunds', () => {
 
   beforeEach(async () => {
     [[InitialAlicePrivateTokens, InitialPrivateFPCPrivateTokens], [InitialPrivateFPCGas]] = await Promise.all([
-      t.privateTokenBalances(aliceAddress, privateFPC.address),
+      t.privateTokenBalances(aliceAddress),
       t.gasBalances(aliceAddress, privateFPC.address),
     ]);
   });
 
   it('can do private payments and refunds', async () => {
+    t.logger.debug('running the transaction');
     const tx = await privateToken.methods
       .private_get_name()
       .send({
@@ -48,24 +58,18 @@ describe('e2e_fees/private_refunds', () => {
       })
       .wait();
 
+    t.logger.debug('done the transaction');
     expect(tx.transactionFee).toBeGreaterThan(0);
 
     // const refund = t.maxFee - tx.transactionFee!;
 
-    await expectMapping(
-      t.privateTokenBalances,
-      [aliceAddress, privateFPC.address],
-      [InitialAlicePrivateTokens - tx.transactionFee!, InitialPrivateFPCPrivateTokens + tx.transactionFee!],
-    );
+    await expectMapping(t.privateTokenBalances, [aliceAddress], [InitialAlicePrivateTokens - tx.transactionFee!]);
 
-    await expectMapping(t.gasBalances, [privateFPC.address], [InitialPrivateFPCGas + tx.transactionFee!]);
+    await expectMapping(t.gasBalances, [privateFPC.address], [InitialPrivateFPCGas - tx.transactionFee!]);
   });
 });
 
-/**
- * Holds information about how the fee for a transaction is to be paid.
- */
-export class PrivateRefundPaymentMethod implements FeePaymentMethod {
+class PrivateRefundPaymentMethod implements FeePaymentMethod {
   constructor(
     /**
      * The asset used to pay the fee.
@@ -80,6 +84,12 @@ export class PrivateRefundPaymentMethod implements FeePaymentMethod {
      * An auth witness provider to authorize fee payments
      */
     private wallet: Wallet,
+
+    /**
+     * A secret to shield the rebate amount from the FPC.
+     * Use this to claim the shielded amount to private balance
+     */
+    private rebateSecret = Fr.random(),
   ) {}
 
   /**
@@ -90,12 +100,8 @@ export class PrivateRefundPaymentMethod implements FeePaymentMethod {
     return this.asset;
   }
 
-  /**
-   * The address which will facilitate the fee payment.
-   * @returns The contract address responsible for holding the fee payment.
-   */
-  getPaymentContract() {
-    return this.paymentContract;
+  getFeePayer(): Promise<AztecAddress> {
+    return Promise.resolve(this.paymentContract);
   }
 
   /**
@@ -111,26 +117,26 @@ export class PrivateRefundPaymentMethod implements FeePaymentMethod {
       this.wallet.getChainId(),
       this.wallet.getVersion(),
       {
+        name: 'setup_refund',
         args: [this.wallet.getCompleteAddress().address, this.paymentContract, maxFee, nonce],
-        functionData: new FunctionData(
-          FunctionSelector.fromSignature('setup_refund((Field),(Field),Field,Field)'),
-          /*isPrivate=*/ true,
-          /*isStatic=*/ false,
-        ),
+        selector: FunctionSelector.fromSignature('setup_refund((Field),(Field),Field,Field)'),
+        type: FunctionType.PRIVATE,
+        isStatic: false,
         to: this.asset,
+        returnTypes: [],
       },
     );
     await this.wallet.createAuthWit(messageHash);
 
     return [
       {
-        to: this.getPaymentContract(),
-        functionData: new FunctionData(
-          FunctionSelector.fromSignature('fund_transaction_privately(Field,(Field),Field)'),
-          /*isPrivate=*/ true,
-          /*isStatic=*/ false,
-        ),
+        name: 'fund_transaction_privately',
+        to: this.paymentContract,
+        selector: FunctionSelector.fromSignature('fund_transaction_privately(Field,(Field),Field)'),
+        type: FunctionType.PRIVATE,
+        isStatic: false,
         args: [maxFee, this.asset, nonce],
+        returnTypes: [],
       },
     ];
   }
