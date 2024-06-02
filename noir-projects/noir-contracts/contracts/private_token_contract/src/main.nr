@@ -1,4 +1,5 @@
 mod types;
+mod lib;
 
 // Minimal token implementation that supports `AuthWit` accounts and private refunds
 
@@ -108,18 +109,18 @@ contract PrivateToken {
         storage.total_supply.write(supply);
     }
 
-    #[aztec(private)]
-    fn transfer(from: AztecAddress, to: AztecAddress, amount: Field, nonce: Field) {
-        if (!from.eq(context.msg_sender())) {
-            assert_current_call_valid_authwit(&mut context, from);
-        } else {
-            assert(nonce == 0, "invalid nonce");
-        }
+    // #[aztec(private)]
+    // fn transfer(from: AztecAddress, to: AztecAddress, amount: Field, nonce: Field) {
+    //     if (!from.eq(context.msg_sender())) {
+    //         assert_current_call_valid_authwit(&mut context, from);
+    //     } else {
+    //         assert(nonce == 0, "invalid nonce");
+    //     }
 
-        let amount = U128::from_integer(amount);
-        storage.balances.sub(from, amount);
-        storage.balances.add(from, to, amount);
-    }
+    //     let amount = U128::from_integer(amount);
+    //     storage.balances.sub(from, amount);
+    //     storage.balances.add(from, to, amount);
+    // }
 
     #[aztec(private)]
     fn balance_of_private(owner: AztecAddress) -> pub Field {
@@ -141,12 +142,12 @@ contract PrivateToken {
             assert(nonce == 0, "invalid nonce");
         }
         storage.balances.sub(sponsored_user, U128::from_integer(funded_amount));
-        let points = TokenNote::generate_refund_points(fee_payer, sponsored_user, funded_amount);
-        context.set_public_teardown_function(
-            context.this_address(),
-            FunctionSelector::from_signature("complete_refund(Field, Field, Field, Field)"),
-            [points[0].x, points[0].y, points[1].x, points[1].y]
-        );
+        // let points = TokenNote::generate_refund_points(fee_payer, sponsored_user, funded_amount);
+        // context.set_public_teardown_function(
+        //     context.this_address(),
+        //     FunctionSelector::from_signature("complete_refund(Field, Field, Field, Field)"),
+        //     [points[0].x, points[0].y, points[1].x, points[1].y]
+        // );
     }
 
     #[aztec(public)]
@@ -157,12 +158,10 @@ contract PrivateToken {
         user_point_x: Field,
         user_point_y: Field
     ) {
-        let fpc_point = Point { x: fpc_point_x, y: fpc_point_y };
-        let user_point = Point { x: user_point_x, y: user_point_y };
-
+        let fpc_point = EmbeddedCurvePoint { x: fpc_point_x, y: fpc_point_y, is_infinite: false };
+        let user_point = EmbeddedCurvePoint { x: user_point_x, y: user_point_y, is_infinite: false };
         let tx_fee = context.transaction_fee();
         let note_hashes = TokenNote::complete_refund(fpc_point, user_point, tx_fee);
-
         context.push_new_note_hash(note_hashes[0]);
         context.push_new_note_hash(note_hashes[1]);
     }

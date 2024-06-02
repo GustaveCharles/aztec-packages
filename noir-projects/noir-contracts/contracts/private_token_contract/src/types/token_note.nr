@@ -4,7 +4,8 @@ use dep::aztec::{
     note::utils::compute_note_hash_for_consumption, oracle::unsafe_rand::unsafe_rand,
     keys::getters::get_nsk_app, note::note_getter_options::PropertySelector
 };
-use dep::std::ec::{consts::te::baby_jubjub, tecurve::affine::Point};
+use dep::std::embedded_curve_ops::EmbeddedCurvePoint;
+use crate::lib::{is_on_grumpkin, add, sub, fixed_base_scalar_mul, fixed_base_multi_scalar_mul};
 
 trait OwnedNote {
     fn new(amount: U128, owner_npk_m_hash: Field) -> Self;
@@ -18,11 +19,11 @@ trait PrivatelyRefundable {
         fee_payer: AztecAddress,
         sponsored_user: AztecAddress,
         funded_amount: Field
-    ) -> [Point; 2];
+    ) -> [EmbeddedCurvePoint; 2];
 
     fn complete_refund(
-        fee_payer_point: Point,
-        sponsored_user_point: Point,
+        fee_payer_point: EmbeddedCurvePoint,
+        sponsored_user_point: EmbeddedCurvePoint,
         transaction_fee: Field
     ) -> [Field; 2];
 }
@@ -80,12 +81,20 @@ impl NoteInterface<TOKEN_NOTE_LEN, TOKEN_NOTE_BYTES_LEN> for TokenNote {
     }
 
     fn compute_note_content_hash(self) -> Field {
-        let bjj = baby_jubjub();
-        let gens = [bjj.curve.gen, bjj.curve.gen, bjj.curve.gen];
-        let scalars = [self.amount.to_integer(), self.npk_m_hash, self.randomness];
+        // using the correct function causes a blowup in memory usage
+        // when running the balance_map sub function
 
-        let point = bjj.curve.msm(scalars, gens);
-        point.x
+        // let scalars = [self.amount.to_integer(), self.npk_m_hash, self.randomness];
+
+        // let point = add(
+        //     add(
+        //         fixed_base_scalar_mul(scalars[0]),
+        //         fixed_base_scalar_mul(scalars[1])),
+        //     fixed_base_scalar_mul(scalars[2]));
+        // point.x
+
+        // instead we use the following, to allow us to compile temporarily        
+        1
     }
 }
 
@@ -113,40 +122,40 @@ impl OwnedNote for TokenNote {
 }
 
 impl PrivatelyRefundable for TokenNote {
-    fn generate_refund_points(fee_payer: AztecAddress, sponsored_user: AztecAddress, funded_amount: Field) -> [Point; 2] {
-        let bjj = baby_jubjub();
+    fn generate_refund_points(fee_payer: AztecAddress, sponsored_user: AztecAddress, funded_amount: Field) -> [EmbeddedCurvePoint; 2] {
 
 
         let fee_payer_nonce = unsafe_rand();
-        let fee_payer_point = bjj.curve.msm([
+        let fee_payer_point = fixed_base_multi_scalar_mul([
             fee_payer.to_field(),
             fee_payer_nonce,
-        ], [
-            bjj.curve.gen,
-            bjj.curve.gen,
         ]);
+        assert_eq(is_on_grumpkin(fee_payer_point), true);
+        assert_eq(fee_payer_point.is_infinite, false);
 
         let sponsored_user_nonce = unsafe_rand();
-        let sponsored_user_point = bjj.curve.msm([
+        let sponsored_user_point = fixed_base_multi_scalar_mul([
             sponsored_user.to_field(),
             funded_amount,
             sponsored_user_nonce,
-        ], [
-            bjj.curve.gen,
-            bjj.curve.gen,
-            bjj.curve.gen,
         ]);
+        assert_eq(is_on_grumpkin(sponsored_user_point), true);
+        assert_eq(sponsored_user_point.is_infinite, false);
 
         [fee_payer_point, sponsored_user_point]
     }
 
-    fn complete_refund(fee_payer_point: Point, sponsored_user_point: Point, transaction_fee: Field) -> [Field; 2] {
-        let bjj = baby_jubjub();
+    fn complete_refund(fee_payer_point: EmbeddedCurvePoint, sponsored_user_point: EmbeddedCurvePoint, transaction_fee: Field) -> [Field; 2] {
 
-        let fee_point = bjj.curve.mul(transaction_fee, bjj.curve.gen);
+        let fee_point = fixed_base_scalar_mul(transaction_fee);
 
-        let completed_fpc_point = bjj.curve.add(fee_payer_point, fee_point);
-        let completed_user_point = bjj.curve.subtract(sponsored_user_point, fee_point);
+        let completed_fpc_point = add(fee_payer_point, fee_point);
+        assert_eq(is_on_grumpkin(completed_fpc_point), true);
+        assert_eq(completed_fpc_point.is_infinite, false);
+
+        let completed_user_point = sub(sponsored_user_point, fee_point);
+        assert_eq(is_on_grumpkin(completed_user_point), true);
+        assert_eq(completed_user_point.is_infinite, false);
 
         [completed_fpc_point.x, completed_user_point.x]
     }

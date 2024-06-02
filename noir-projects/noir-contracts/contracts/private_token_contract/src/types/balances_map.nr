@@ -85,8 +85,17 @@ impl<T> BalancesMap<T, &mut PrivateContext> {
         owner: AztecAddress,
         subtrahend: U128
     ) where T: NoteInterface<T_SERIALIZED_LEN, T_SERIALIZED_BYTES_LEN> + OwnedNote {
-        let options = NoteGetterOptions::with_filter(filter_notes_min_sum, subtrahend);
-        let maybe_notes = self.map.get_notes(options);
+        let mut options = NoteGetterOptions::with_filter(filter_notes_min_sum, subtrahend);
+        let context = self.map.context;
+        let header = context.get_header();
+        let owner_npk_m_hash = header.get_npk_m_hash(context, owner);
+        let maybe_notes = self.map.get_notes(
+            options.select(
+                T::get_owner_selector(),
+                owner_npk_m_hash,
+                Option::some(Comparator.EQ)
+            )
+        );
 
         let mut minuend: U128 = U128::from_integer(0);
         for i in 0..maybe_notes.len() {
