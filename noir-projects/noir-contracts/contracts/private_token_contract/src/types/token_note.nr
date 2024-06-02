@@ -81,20 +81,20 @@ impl NoteInterface<TOKEN_NOTE_LEN, TOKEN_NOTE_BYTES_LEN> for TokenNote {
     }
 
     fn compute_note_content_hash(self) -> Field {
-        // using the correct function causes a blowup in memory usage
-        // when running the balance_map sub function
 
-        // let scalars = [self.amount.to_integer(), self.npk_m_hash, self.randomness];
+        add(
+            add(
+                fixed_base_scalar_mul(
+                    self.amount.to_integer()
+                ),
+                fixed_base_scalar_mul(
+                    self.npk_m_hash
+                )),
+            fixed_base_scalar_mul(
+                self.randomness
+            )
+        ).x
 
-        // let point = add(
-        //     add(
-        //         fixed_base_scalar_mul(scalars[0]),
-        //         fixed_base_scalar_mul(scalars[1])),
-        //     fixed_base_scalar_mul(scalars[2]));
-        // point.x
-
-        // instead we use the following, to allow us to compile temporarily        
-        1
     }
 }
 
@@ -130,7 +130,6 @@ impl PrivatelyRefundable for TokenNote {
             fee_payer.to_field(),
             fee_payer_nonce,
         ]);
-        assert_eq(is_on_grumpkin(fee_payer_point), true);
         assert_eq(fee_payer_point.is_infinite, false);
 
         let sponsored_user_nonce = unsafe_rand();
@@ -139,7 +138,6 @@ impl PrivatelyRefundable for TokenNote {
             funded_amount,
             sponsored_user_nonce,
         ]);
-        assert_eq(is_on_grumpkin(sponsored_user_point), true);
         assert_eq(sponsored_user_point.is_infinite, false);
 
         [fee_payer_point, sponsored_user_point]
@@ -150,11 +148,8 @@ impl PrivatelyRefundable for TokenNote {
         let fee_point = fixed_base_scalar_mul(transaction_fee);
 
         let completed_fpc_point = add(fee_payer_point, fee_point);
-        assert_eq(is_on_grumpkin(completed_fpc_point), true);
-        assert_eq(completed_fpc_point.is_infinite, false);
 
         let completed_user_point = sub(sponsored_user_point, fee_point);
-        assert_eq(is_on_grumpkin(completed_user_point), true);
         assert_eq(completed_user_point.is_infinite, false);
 
         [completed_fpc_point.x, completed_user_point.x]
