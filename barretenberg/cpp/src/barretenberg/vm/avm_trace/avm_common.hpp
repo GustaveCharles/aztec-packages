@@ -40,10 +40,87 @@ static const size_t NUM_MEM_SPACES = 256;
 static const uint8_t INTERNAL_CALL_SPACE_ID = 255;
 static const uint32_t MAX_SIZE_INTERNAL_STACK = 1 << 16;
 
-// Side effect counter -> value
+struct ExternalCallHint {
+    FF success;
+    std::vector<FF> return_data;
+    FF l2_gas_used;
+    FF da_gas_used;
+};
+
+// Add support for deserialization of ExternalCallHint. This is implicitly used by serialize::read
+// when trying to read std::vector<ExternalCallHint>.
+inline void read(uint8_t const*& it, ExternalCallHint& hint)
+{
+    using serialize::read;
+    read(it, hint.success);
+    read(it, hint.return_data);
+    read(it, hint.l2_gas_used);
+    read(it, hint.da_gas_used);
+}
+
 struct ExecutionHints {
-    std::unordered_map<uint32_t, FF> side_effect_hints;
-    std::vector<std::vector<FF>> returndata_hints;
+    ExecutionHints() = default;
+    ExecutionHints(std::vector<std::pair<FF, FF>> storage_value_hints,
+                   std::vector<std::pair<FF, FF>> note_hash_exists_hints,
+                   std::vector<std::pair<FF, FF>> nullifier_exists_hints,
+                   std::vector<std::pair<FF, FF>> l1_to_l2_message_exists_hints,
+                   std::vector<ExternalCallHint> externalcall_hints)
+        : storage_value_hints(std::move(storage_value_hints))
+        , note_hash_exists_hints(std::move(note_hash_exists_hints))
+        , nullifier_exists_hints(std::move(nullifier_exists_hints))
+        , l1_to_l2_message_exists_hints(std::move(l1_to_l2_message_exists_hints))
+        , externalcall_hints(std::move(externalcall_hints))
+    {}
+
+    std::vector<std::pair<FF, FF>> storage_value_hints;
+    std::vector<std::pair<FF, FF>> note_hash_exists_hints;
+    std::vector<std::pair<FF, FF>> nullifier_exists_hints;
+    std::vector<std::pair<FF, FF>> l1_to_l2_message_exists_hints;
+    std::vector<ExternalCallHint> externalcall_hints;
+
+    static void push_vec_into_map(std::unordered_map<uint32_t, FF>& into_map,
+                                  const std::vector<std::pair<FF, FF>>& from_pair_vec)
+    {
+        for (const auto& pair : from_pair_vec) {
+            into_map[static_cast<uint32_t>(pair.first)] = pair.second;
+        }
+    }
+
+    // TODO: Cache.
+    // Side effect counter -> value
+    std::unordered_map<uint32_t, FF> get_side_effect_hints() const
+    {
+        std::unordered_map<uint32_t, FF> hints_map;
+        push_vec_into_map(hints_map, storage_value_hints);
+        push_vec_into_map(hints_map, note_hash_exists_hints);
+        push_vec_into_map(hints_map, nullifier_exists_hints);
+        push_vec_into_map(hints_map, l1_to_l2_message_exists_hints);
+        return hints_map;
+    }
+
+    static ExecutionHints from(const std::vector<uint8_t>& data)
+    {
+        std::vector<std::pair<FF, FF>> storage_value_hints;
+        std::vector<std::pair<FF, FF>> note_hash_exists_hints;
+        std::vector<std::pair<FF, FF>> nullifier_exists_hints;
+        std::vector<std::pair<FF, FF>> l1_to_l2_message_exists_hints;
+
+        using serialize::read;
+        const auto* it = data.data();
+        read(it, storage_value_hints);
+        read(it, note_hash_exists_hints);
+        read(it, nullifier_exists_hints);
+        read(it, l1_to_l2_message_exists_hints);
+
+        std::vector<ExternalCallHint> externalcall_hints;
+        read(it, externalcall_hints);
+
+        return { std::move(storage_value_hints),
+                 std::move(note_hash_exists_hints),
+                 std::move(nullifier_exists_hints),
+                 std::move(l1_to_l2_message_exists_hints),
+                 std::move(externalcall_hints) };
+    }
 };
 
 } // namespace bb::avm_trace

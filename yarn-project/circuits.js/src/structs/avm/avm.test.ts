@@ -1,20 +1,20 @@
 import { randomInt } from '@aztec/foundation/crypto';
 
-import { makeAvmCircuitInputs, makeAvmExecutionHints, makeAvmHint } from '../../tests/factories.js';
-import { AvmCircuitInputs, AvmExecutionHints, AvmHint } from './avm.js';
+import { makeAvmCircuitInputs, makeAvmExecutionHints, makeAvmKeyValueHint } from '../../tests/factories.js';
+import { AvmCircuitInputs, AvmExecutionHints, AvmKeyValueHint } from './avm.js';
 
 describe('Avm circuit inputs', () => {
-  describe('AvmHint', () => {
-    let avmHint: AvmHint;
+  describe('AvmKeyValueHint', () => {
+    let avmKeyValueHint: AvmKeyValueHint;
 
     beforeAll(() => {
-      avmHint = makeAvmHint(randomInt(1000));
+      avmKeyValueHint = makeAvmKeyValueHint(randomInt(1000));
     });
 
     it(`serializes to buffer and deserializes it back`, () => {
-      const buffer = avmHint.toBuffer();
-      const res = AvmHint.fromBuffer(buffer);
-      expect(res).toEqual(avmHint);
+      const buffer = avmKeyValueHint.toBuffer();
+      const res = AvmKeyValueHint.fromBuffer(buffer);
+      expect(res).toEqual(avmKeyValueHint);
       expect(res.isEmpty()).toBe(false);
     });
   });
