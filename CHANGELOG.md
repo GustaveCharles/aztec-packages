@@ -1,5 +1,35 @@
 # Changelog
 
+## [0.42.1](https://github.com/AztecProtocol/aztec-packages/compare/aztec-packages-v0.42.0...aztec-packages-v0.42.1) (2024-06-04)
+
+
+### Features
+
+* Add data dir to pxe container ([#6874](https://github.com/AztecProtocol/aztec-packages/issues/6874)) ([504fea2](https://github.com/AztecProtocol/aztec-packages/commit/504fea2e330ad66ec269ddff581b7448c008f9ca))
+* **avm:** Add get_contract_instance ([#6871](https://github.com/AztecProtocol/aztec-packages/issues/6871)) ([b3a86bf](https://github.com/AztecProtocol/aztec-packages/commit/b3a86bf72343d1060ce58a11f139e05ba2a75754))
+* **avm:** Deserialise execution hints in bb main ([#6848](https://github.com/AztecProtocol/aztec-packages/issues/6848)) ([d3be85f](https://github.com/AztecProtocol/aztec-packages/commit/d3be85f57c34aa88e732ea115239f3bed1e7aa16))
+* **avm:** L2gasleft and dagasleft opcodes ([#6884](https://github.com/AztecProtocol/aztec-packages/issues/6884)) ([fbab612](https://github.com/AztecProtocol/aztec-packages/commit/fbab612b17dfe0e95ead1a592b7bc9fe6ca5415d))
+* Track timeout status of proving jobs ([#6868](https://github.com/AztecProtocol/aztec-packages/issues/6868)) ([7306176](https://github.com/AztecProtocol/aztec-packages/commit/7306176c80d1d80c032c3eed38a2008d545fb025))
+
+
+### Bug Fixes
+
+* Declare volume ([#6881](https://github.com/AztecProtocol/aztec-packages/issues/6881)) ([1e38115](https://github.com/AztecProtocol/aztec-packages/commit/1e381159bb1d407dec8a4926242ecd54ec38e787))
+* **docs:** Remove prefix in link to code snippet source ([#6878](https://github.com/AztecProtocol/aztec-packages/issues/6878)) ([0e8e772](https://github.com/AztecProtocol/aztec-packages/commit/0e8e772c05c81c0b5cf6a2d047a5587c6c2e1a9c))
+* **p2p:** Remove p2p datastore persistence for now ([#6879](https://github.com/AztecProtocol/aztec-packages/issues/6879)) ([ce7f0e2](https://github.com/AztecProtocol/aztec-packages/commit/ce7f0e244621a599796e8d26fd37540b541ca0d3))
+* Register account contract before recipient ([#6855](https://github.com/AztecProtocol/aztec-packages/issues/6855)) ([dfea1c7](https://github.com/AztecProtocol/aztec-packages/commit/dfea1c79f57564af3be83a0b3244374f74834571))
+
+
+### Miscellaneous
+
+* **avm:** Gas alignments with simulator ([#6873](https://github.com/AztecProtocol/aztec-packages/issues/6873)) ([54339d4](https://github.com/AztecProtocol/aztec-packages/commit/54339d48861a91429e996177713f46952ffbd808)), closes [#6860](https://github.com/AztecProtocol/aztec-packages/issues/6860)
+
+
+### Documentation
+
+* **avm:** Comments in pil file related to range checks of addresses ([#6837](https://github.com/AztecProtocol/aztec-packages/issues/6837)) ([66f1c87](https://github.com/AztecProtocol/aztec-packages/commit/66f1c876578b05838698377f2ede12b52671e4ca))
+* Update HOW_WE_WRITE_DOCS.md ([#6850](https://github.com/AztecProtocol/aztec-packages/issues/6850)) ([d4dfdaf](https://github.com/AztecProtocol/aztec-packages/commit/d4dfdaf9ab03eeafa3d54be178fc72c59ac51b95))
+
 ## [0.42.0](https://github.com/AztecProtocol/aztec-packages/compare/aztec-packages-v0.41.0...aztec-packages-v0.42.0) (2024-06-04)
 
 

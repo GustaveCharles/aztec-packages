@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.42.1](https://github.com/AztecProtocol/aztec-packages/compare/barretenberg-v0.42.0...barretenberg-v0.42.1) (2024-06-04)
+
+
+### Features
+
+* **avm:** Add get_contract_instance ([#6871](https://github.com/AztecProtocol/aztec-packages/issues/6871)) ([b3a86bf](https://github.com/AztecProtocol/aztec-packages/commit/b3a86bf72343d1060ce58a11f139e05ba2a75754))
+* **avm:** Deserialise execution hints in bb main ([#6848](https://github.com/AztecProtocol/aztec-packages/issues/6848)) ([d3be85f](https://github.com/AztecProtocol/aztec-packages/commit/d3be85f57c34aa88e732ea115239f3bed1e7aa16))
+* **avm:** L2gasleft and dagasleft opcodes ([#6884](https://github.com/AztecProtocol/aztec-packages/issues/6884)) ([fbab612](https://github.com/AztecProtocol/aztec-packages/commit/fbab612b17dfe0e95ead1a592b7bc9fe6ca5415d))
+
+
+### Miscellaneous
+
+* **avm:** Gas alignments with simulator ([#6873](https://github.com/AztecProtocol/aztec-packages/issues/6873)) ([54339d4](https://github.com/AztecProtocol/aztec-packages/commit/54339d48861a91429e996177713f46952ffbd808)), closes [#6860](https://github.com/AztecProtocol/aztec-packages/issues/6860)
+
+
+### Documentation
+
+* **avm:** Comments in pil file related to range checks of addresses ([#6837](https://github.com/AztecProtocol/aztec-packages/issues/6837)) ([66f1c87](https://github.com/AztecProtocol/aztec-packages/commit/66f1c876578b05838698377f2ede12b52671e4ca))
+
 ## [0.42.0](https://github.com/AztecProtocol/aztec-packages/compare/barretenberg-v0.41.0...barretenberg-v0.42.0) (2024-06-04)
 
 
